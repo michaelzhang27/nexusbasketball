@@ -461,6 +461,7 @@ export interface AuthUser {
   role: 'head_coach' | 'assistant_coach' | 'analyst'
   school: string
   conference: string
+  dataView: 'mens' | 'womens'
 }
 
 export interface AuthState {

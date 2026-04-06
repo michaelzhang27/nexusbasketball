@@ -243,7 +243,7 @@ export default function LandingPage() {
                 style={{ animation: "blink-dot 2.5s ease infinite" }}
               />
               <span className="text-xs text-blue-300 font-medium tracking-wide">
-                2026–27 Season · 3,470 D1 Players
+                2026–27 Season · 8,470 D1 Players
               </span>
             </div>
 
@@ -285,7 +285,7 @@ export default function LandingPage() {
                 href="/signup"
                 className="inline-flex items-center gap-2.5 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-all text-sm hover:shadow-xl hover:shadow-blue-900/40 active:scale-[0.97]"
               >
-                Request access
+                Get access
                 <span className="text-blue-300 text-base leading-none">→</span>
               </Link>
               <Link
@@ -301,7 +301,7 @@ export default function LandingPage() {
               className="hero-line mt-11 flex items-center gap-5 text-[11px] text-gray-600"
               style={{ animationDelay: "0.7s" }}
             >
-              <span>3,470 players tracked</span>
+              <span>8,470 players tracked</span>
               <span className="w-px h-3 bg-white/8" />
               <span>All 32 D1 conferences</span>
               <span className="w-px h-3 bg-white/8" />

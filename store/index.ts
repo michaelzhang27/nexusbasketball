@@ -213,6 +213,10 @@ export interface NexusStore {
   // Players (loaded from API on startup)
   setPlayers: (players: Player[]) => void
 
+  // Data view (mens/womens) — sourced from Supabase user_metadata on login
+  dataView: 'mens' | 'womens'
+  setDataView: (view: 'mens' | 'womens') => void
+
   // Cloud data bootstrap (called by StoreHydration after login)
   loadUserData: (data: { scenarios: RosterScenario[]; player_notes: Record<string, string[]>; models: EvaluationModel[] }) => void
 
@@ -683,6 +687,10 @@ export const useNexusStore = create<NexusStore>()(
 
       setPlayers: (players) => set({ players }),
 
+      // ── Data view ─────────────────────────────────────────────────────────
+      dataView: 'mens',
+      setDataView: (view) => set({ dataView: view }),
+
       // ── Cloud data bootstrap ──────────────────────────────────────────────
       loadUserData: (data) => {
         set(state => {
@@ -744,6 +752,7 @@ export const useNexusStore = create<NexusStore>()(
         conferenceResult: state.conferenceResult,
         teamContext: state.teamContext,
         scenarioPredictions: state.scenarioPredictions,
+        dataView: state.dataView,
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return

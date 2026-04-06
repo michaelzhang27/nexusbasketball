@@ -15,7 +15,7 @@ import type { AuthState } from '@/types'
  */
 export function useAuth(): AuthState {
   const [state, setState] = useState<AuthState>({
-    user: { name: '', role: 'head_coach', school: '', conference: '' },
+    user: { name: '', role: 'head_coach', school: '', conference: '', dataView: 'mens' },
     isLoaded: false,
   })
 
@@ -30,6 +30,7 @@ export function useAuth(): AuthState {
           role:       'head_coach',
           school:     user?.user_metadata?.school     ?? '',
           conference: user?.user_metadata?.conference ?? '',
+          dataView:   (user?.user_metadata?.data_view ?? 'mens') as 'mens' | 'womens',
         },
         isLoaded: true,
       })
@@ -43,6 +44,7 @@ export function useAuth(): AuthState {
           role:       'head_coach',
           school:     session?.user?.user_metadata?.school     ?? '',
           conference: session?.user?.user_metadata?.conference ?? '',
+          dataView:   (session?.user?.user_metadata?.data_view ?? 'mens') as 'mens' | 'womens',
         },
         isLoaded: true,
       })

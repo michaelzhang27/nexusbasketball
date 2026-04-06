@@ -221,7 +221,7 @@ export default function LoginPage() {
                 <span className="text-blue-400">Scored for your system.</span>
               </h2>
               <p className="text-[13px] text-gray-500 leading-relaxed">
-                3,470 D1 players. Custom fit models. NIL budget tools.
+                8,470 D1 players. Custom fit models. NIL budget tools.
                 Everything you need to fill your roster before the portal
                 closes.
               </p>
@@ -229,7 +229,7 @@ export default function LoginPage() {
               {/* Mini stat strip */}
               <div className="flex items-center gap-4 pt-2">
                 {[
-                  { v: "3,470", l: "Players" },
+                  { v: "8,470", l: "Players" },
                   { v: "32", l: "Conferences" },
                   { v: "Live", l: "Portal Status" },
                 ].map(({ v, l }) => (

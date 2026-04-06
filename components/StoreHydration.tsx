@@ -4,12 +4,14 @@ import { useEffect } from "react";
 import { useNexusStore } from "@/store";
 import { getAccessToken } from "@/lib/auth";
 import { fetchUserData, saveScenario } from "@/lib/api";
+import { createClient } from "@/lib/supabase";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8005";
 
 /**
  * 1. Triggers Zustand persist rehydration from localStorage.
- * 2. Fetches players from the FastAPI backend and seeds the store.
+ * 2. Resolves the Supabase session to determine data_view (mens/womens),
+ *    updates the store, then fetches the correct player set from the backend.
  * 3. If the user is authenticated, loads their cloud data (scenarios, notes, models).
  * Must be a client component rendered inside the layout.
  */
@@ -19,11 +21,20 @@ export function StoreHydration() {
     useNexusStore.persist.rehydrate();
   }, []);
 
-  // Fetch players from backend.
+  // Fetch players from backend — gender determined by the user's data_view.
   useEffect(() => {
     async function fetchPlayers() {
       try {
-        const res = await fetch(`${API_BASE}/api/players`);
+        // Supabase returns the cached session synchronously-fast; no visible delay.
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        const dataView = (user?.user_metadata?.data_view ?? "mens") as "mens" | "womens";
+        useNexusStore.getState().setDataView(dataView);
+
+        const url = dataView === "womens"
+          ? `${API_BASE}/api/players?gender=womens`
+          : `${API_BASE}/api/players`;
+        const res = await fetch(url);
         if (!res.ok) return;
         const data = await res.json();
         useNexusStore.getState().setPlayers(data);

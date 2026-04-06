@@ -75,19 +75,20 @@ export function usePlayerSearch(
 
   const models = useNexusStore(s => s.models)
   const activeModelId = useNexusStore(s => s.activeModelId)
+  const dataView = useNexusStore(s => s.dataView)
 
   // Debounced state — gates the fresh-fetch effect
-  const [debounced, setDebounced] = useState({ filterState, searchQuery, sortField })
+  const [debounced, setDebounced] = useState({ filterState, searchQuery, sortField, dataView })
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
     clearTimeout(timerRef.current)
     timerRef.current = setTimeout(
-      () => setDebounced({ filterState, searchQuery, sortField }),
+      () => setDebounced({ filterState, searchQuery, sortField, dataView }),
       200,
     )
     return () => clearTimeout(timerRef.current)
-  }, [filterState, searchQuery, sortField])
+  }, [filterState, searchQuery, sortField, dataView])
 
   // Fresh fetch whenever debounced state changes
   useEffect(() => {
@@ -96,9 +97,10 @@ export function usePlayerSearch(
     committedRef.current = debounced
 
     const params = buildParams(debounced.filterState, debounced.searchQuery, debounced.sortField, 0)
+    const genderParam = debounced.dataView === 'womens' ? '&gender=womens' : ''
     const controller = new AbortController()
 
-    fetch(`${API_BASE}/api/players/search?${params}`, { signal: controller.signal })
+    fetch(`${API_BASE}/api/players/search?${params}${genderParam}`, { signal: controller.signal })
       .then(r => r.json())
       .then(data => {
         setPlayers(data.players ?? [])
@@ -115,10 +117,11 @@ export function usePlayerSearch(
   const loadMore = useCallback(() => {
     const newOffset = offset + LIMIT
     setIsLoadingMore(true)
-    const { filterState: fs, searchQuery: sq, sortField: sf } = committedRef.current
+    const { filterState: fs, searchQuery: sq, sortField: sf, dataView: dv } = committedRef.current
     const params = buildParams(fs, sq, sf, newOffset)
+    const genderParam = dv === 'womens' ? '&gender=womens' : ''
 
-    fetch(`${API_BASE}/api/players/search?${params}`)
+    fetch(`${API_BASE}/api/players/search?${params}${genderParam}`)
       .then(r => r.json())
       .then(data => {
         setPlayers(prev => [...prev, ...(data.players ?? [])])

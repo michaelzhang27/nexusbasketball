@@ -190,6 +190,12 @@ export function projectPlayerStats(
     winShares:     parseFloat((player.winShares * countingMultiplier).toFixed(1)),
     per:           player.per,
     minutesPerGame: parseFloat(projectedMPG.toFixed(1)),
+    fgaPerGame:    player.fgaPerGame   !== undefined ? parseFloat((player.fgaPerGame  * countingMultiplier).toFixed(1)) : undefined,
+    ftaPerGame:    player.ftaPerGame   !== undefined ? parseFloat((player.ftaPerGame  * countingMultiplier).toFixed(1)) : undefined,
+    fg3mPerGame:   player.fg3mPerGame  !== undefined ? parseFloat((player.fg3mPerGame * countingMultiplier).toFixed(1)) : undefined,
+    orebPerGame:   player.orebPerGame  !== undefined ? parseFloat((player.orebPerGame * countingMultiplier).toFixed(1)) : undefined,
+    drebPerGame:   player.drebPerGame  !== undefined ? parseFloat((player.drebPerGame * countingMultiplier).toFixed(1)) : undefined,
+    foulsPerGame:  player.foulsPerGame !== undefined ? parseFloat((player.foulsPerGame * paceMultiplier * minutesMultiplier).toFixed(1)) : undefined,
   }
 }
 

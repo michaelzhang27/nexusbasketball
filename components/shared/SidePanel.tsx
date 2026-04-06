@@ -375,11 +375,11 @@ function StatsTab({ playerId }: { playerId: string }) {
         <h3 className="text-xs text-gray-500 uppercase tracking-widest mb-2 font-medium">Scoring</h3>
         <div className="bg-[#1a1e24] rounded-lg px-3">
           <StatRowWithProj label="PPG"   value={stats.ppg}       projected={!showPrevSeason ? activePrediction?.points      : undefined} />
-          <StatRowWithProj label="FGA/G" value={stats.fgaPerGame} projected={!showPrevSeason ? activePrediction?.fg_attempted : undefined} />
-          <StatRowWithProj label="FG%"   value={stats.fgPct}      projected={!showPrevSeason ? activePrediction?.fg_pct   : undefined} format="pct" />
-          <StatRowWithProj label="3PM/G" value={stats.fg3mPerGame} projected={!showPrevSeason ? activePrediction?.fg3_made  : undefined} />
-          <StatRowWithProj label="3PT%"  value={stats.fg3Pct}     projected={!showPrevSeason ? activePrediction?.fg3_pct  : undefined} format="pct" />
-          <StatRowWithProj label="FTA/G" value={stats.ftaPerGame}  projected={!showPrevSeason ? activePrediction?.ft_attempted : undefined} />
+          <StatRowWithProj label="FGA/G" value={stats.fgaPerGame  ?? 0} projected={!showPrevSeason ? activePrediction?.fg_attempted : undefined} />
+          <StatRowWithProj label="FG%"   value={stats.fgPct}           projected={!showPrevSeason ? activePrediction?.fg_pct   : undefined} format="pct" />
+          <StatRowWithProj label="3PM/G" value={stats.fg3mPerGame ?? 0} projected={!showPrevSeason ? activePrediction?.fg3_made  : undefined} />
+          <StatRowWithProj label="3PT%"  value={stats.fg3Pct}          projected={!showPrevSeason ? activePrediction?.fg3_pct  : undefined} format="pct" />
+          <StatRowWithProj label="FTA/G" value={stats.ftaPerGame  ?? 0} projected={!showPrevSeason ? activePrediction?.ft_attempted : undefined} />
           <StatRowWithProj label="FT%"   value={stats.ftPct}      projected={!showPrevSeason ? activePrediction?.ft_pct   : undefined} format="pct" />
         </div>
       </section>
@@ -396,7 +396,7 @@ function StatsTab({ playerId }: { playerId: string }) {
           />
           <StatRowWithProj label="SPG"     value={stats.spg}         projected={!showPrevSeason ? activePrediction?.steals     : undefined} />
           <StatRowWithProj label="BPG"     value={stats.bpg}         projected={!showPrevSeason ? activePrediction?.blocks     : undefined} />
-          <StatRowWithProj label="Fouls/G" value={stats.foulsPerGame} projected={!showPrevSeason ? activePrediction?.fouls     : undefined} />
+          <StatRowWithProj label="Fouls/G" value={stats.foulsPerGame ?? 0} projected={!showPrevSeason ? activePrediction?.fouls     : undefined} />
         </div>
       </section>
 
@@ -404,8 +404,8 @@ function StatsTab({ playerId }: { playerId: string }) {
         <h3 className="text-xs text-gray-500 uppercase tracking-widest mb-2 font-medium">Rebounding</h3>
         <div className="bg-[#1a1e24] rounded-lg px-3">
           <StatRowWithProj label="RPG"    value={stats.rpg}          projected={!showPrevSeason ? activePrediction?.total_rebounds      : undefined} />
-          <StatRowWithProj label="OREB/G" value={stats.orebPerGame}  projected={!showPrevSeason ? activePrediction?.offensive_rebounds  : undefined} />
-          <StatRowWithProj label="DREB/G" value={stats.drebPerGame}  projected={!showPrevSeason ? activePrediction?.defensive_rebounds  : undefined} />
+          <StatRowWithProj label="OREB/G" value={stats.orebPerGame  ?? 0} projected={!showPrevSeason ? activePrediction?.offensive_rebounds  : undefined} />
+          <StatRowWithProj label="DREB/G" value={stats.drebPerGame  ?? 0} projected={!showPrevSeason ? activePrediction?.defensive_rebounds  : undefined} />
           <StatRow         label="Min/G"  value={stats.minutesPerGame} compact />
         </div>
       </section>

@@ -62,16 +62,16 @@ function computeRawScore(player: Player, coeffs: ModelCoefficients): number {
 
   // Per-40 inputs
   const p40points = per40(player.ppg,         mpg)
-  const p40fga    = per40(player.fgaPerGame,  mpg)
-  const p40fta    = per40(player.ftaPerGame,  mpg)
-  const p40fg3m   = per40(player.fg3mPerGame, mpg)
-  const p40ast    = per40(player.apg,         mpg)
-  const p40tov    = per40(player.topg,        mpg)
-  const p40oreb   = per40(player.orebPerGame, mpg)
-  const p40dreb   = per40(player.drebPerGame, mpg)
-  const p40stl    = per40(player.spg,         mpg)
-  const p40blk    = per40(player.bpg,         mpg)
-  const p40fouls  = per40(player.foulsPerGame, mpg)
+  const p40fga    = per40(player.fgaPerGame   ?? 0, mpg)
+  const p40fta    = per40(player.ftaPerGame   ?? 0, mpg)
+  const p40fg3m   = per40(player.fg3mPerGame  ?? 0, mpg)
+  const p40ast    = per40(player.apg,               mpg)
+  const p40tov    = per40(player.topg,              mpg)
+  const p40oreb   = per40(player.orebPerGame  ?? 0, mpg)
+  const p40dreb   = per40(player.drebPerGame  ?? 0, mpg)
+  const p40stl    = per40(player.spg,               mpg)
+  const p40blk    = per40(player.bpg,               mpg)
+  const p40fouls  = per40(player.foulsPerGame ?? 0, mpg)
 
   // Apply formula — penalty stats are negated
   return (

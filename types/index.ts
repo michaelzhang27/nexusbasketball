@@ -53,12 +53,12 @@ export interface PlayerStats {
   per: number // player efficiency rating
   minutesPerGame: number
   // Per-game counting stats needed for per-40 fit score computation
-  fgaPerGame: number  // FG attempts per game
-  ftaPerGame: number  // FT attempts per game
-  fg3mPerGame: number // 3-pointers made per game
-  orebPerGame: number // offensive rebounds per game
-  drebPerGame: number // defensive rebounds per game
-  foulsPerGame: number // personal fouls per game
+  fgaPerGame?: number  // FG attempts per game
+  ftaPerGame?: number  // FT attempts per game
+  fg3mPerGame?: number // 3-pointers made per game
+  orebPerGame?: number // offensive rebounds per game
+  drebPerGame?: number // defensive rebounds per game
+  foulsPerGame?: number // personal fouls per game
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

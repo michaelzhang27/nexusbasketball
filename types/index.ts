@@ -59,6 +59,7 @@ export interface PlayerStats {
   orebPerGame?: number // offensive rebounds per game
   drebPerGame?: number // defensive rebounds per game
   foulsPerGame?: number // personal fouls per game
+  totalMinutes?: number // season total minutes (general_minutes); used for fit score eligibility
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

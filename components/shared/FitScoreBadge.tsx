@@ -32,7 +32,7 @@ function FitScoreBadge({ score, size = 'md', className }: FitScoreBadgeProps) {
         className
       )}
     >
-      {isUndefined ? '—' : score}
+      {isUndefined ? 'N/A' : score}
     </span>
   )
 }

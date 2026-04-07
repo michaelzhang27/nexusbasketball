@@ -97,14 +97,20 @@ const SCORE_MAX = 99
  * The worst player receives 40, the best receives 99, all others scale linearly.
  * Returns a map of playerId → score (integer 40–99).
  */
+const MIN_TOTAL_MINUTES = 200
+
 export function computeAllFitScores(
   players: Player[],
   model: EvaluationModel,
 ): Record<string, number> {
   if (players.length === 0) return {}
 
-  // 1. Raw scores
-  const rawScores: { id: string; raw: number }[] = players.map(p => ({
+  // Only compute scores for players who have logged enough minutes to be meaningful
+  const eligible = players.filter(p => (p.totalMinutes ?? 0) >= MIN_TOTAL_MINUTES)
+  if (eligible.length === 0) return {}
+
+  // 1. Raw scores for eligible players only
+  const rawScores: { id: string; raw: number }[] = eligible.map(p => ({
     id:  p.id,
     raw: computeRawScore(p, getCoeffsForPosition(model, p.position)),
   }))
@@ -120,6 +126,7 @@ export function computeAllFitScores(
     const t = range === 0 ? 0.5 : (raw - min) / range
     result[id] = Math.round(SCORE_MIN + t * (SCORE_MAX - SCORE_MIN))
   }
+  // Players below the minutes threshold are omitted → their fitScore stays undefined (N/A)
   return result
 }
 

@@ -1,6 +1,5 @@
 'use client'
 
-import { useMemo } from 'react'
 import { Star, Plus, ClipboardList, UserPlus, ChevronRight } from 'lucide-react'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { useNexusStore, useWatchlistIds, useActiveBoardGroups } from '@/store'
@@ -10,7 +9,7 @@ import { PlayerAvatar } from '@/components/shared/PlayerAvatar'
 import { FitScoreBadge, getFitScoreLabel } from '@/components/shared/FitScoreBadge'
 import { StatusPill } from '@/components/shared/StatusPill'
 import { Badge } from '@/components/ui/Badge'
-import { generateRosterImpact } from '@/lib/projections'
+import { getPlayerTags } from '@/lib/playerTags'
 import { cn, positionColor, formatDate } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import type { Player } from '@/types'
@@ -23,8 +22,6 @@ export function PlayerResultCard({ player }: PlayerResultCardProps) {
   const { show } = useToast()
   const fitScore = useFitScore(player)
   const scenario = useActiveScenario()
-  const players = useNexusStore(s => s.players)
-  const returners = useNexusStore(s => s.returners)
   const toggleWatchlist = useNexusStore(s => s.toggleWatchlist)
   const watchlistIds = useWatchlistIds()
   const openSidePanel = useNexusStore(s => s.openSidePanel)
@@ -36,12 +33,6 @@ export function PlayerResultCard({ player }: PlayerResultCardProps) {
 
   const isWatchlisted = watchlistIds.includes(player.id)
   const isOnBoard = boardGroups.find(g => g.id === 'overall')?.playerIds.includes(player.id) ?? false
-
-  const rosterImpact = useMemo(() => {
-    if (!scenario) return null
-    const allPlayers = [...players, ...returners]
-    return generateRosterImpact(player, scenario, allPlayers)
-  }, [player, scenario, players, returners])
 
   function handleAddToBoard() {
     const overallGroup = boardGroups.find(g => g.id === 'overall')
@@ -113,10 +104,32 @@ export function PlayerResultCard({ player }: PlayerResultCardProps) {
           ))}
         </div>
 
-        {/* Roster impact */}
-        {rosterImpact && (
-          <p className="text-xs text-gray-400 mb-2 leading-relaxed">{rosterImpact}</p>
-        )}
+        {/* Strength tags */}
+        {(() => {
+          const tags = getPlayerTags(player)
+          return tags.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {tags.map(tag => (
+                <Tooltip.Root key={tag.label}>
+                  <Tooltip.Trigger asChild>
+                    <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded border cursor-default', tag.color)}>
+                      {tag.label}
+                    </span>
+                  </Tooltip.Trigger>
+                  <Tooltip.Portal>
+                    <Tooltip.Content
+                      className="bg-[#1a1e24] border border-white/10 text-xs text-gray-300 px-2.5 py-1.5 rounded-lg shadow-lg z-50 max-w-[200px]"
+                      sideOffset={5}
+                    >
+                      {tag.description}
+                      <Tooltip.Arrow className="fill-[#1a1e24]" />
+                    </Tooltip.Content>
+                  </Tooltip.Portal>
+                </Tooltip.Root>
+              ))}
+            </div>
+          ) : null
+        })()}
 
         {/* NIL range */}
         <p className="text-xs text-gray-600 mb-3 italic">Estimated market rate NIL coming soon</p>

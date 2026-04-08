@@ -1,11 +1,33 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { X } from 'lucide-react'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8005'
 const SESSION_KEY = 'nexus_analytics_auth'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+interface UserActivity {
+  scenario_count: number
+  total_budget: number
+  total_committed: number
+  total_targeted: number
+  nil_deal_count: number
+  note_count: number
+  prediction_count: number
+  projection_count: number
+}
+
+interface UserScenario {
+  id: string
+  name: string
+  budget: number
+  nil_deal_count: number
+  committed: number
+  targeted: number
+  created_at: string
+}
 
 interface UserDetail {
   id: string
@@ -15,11 +37,16 @@ interface UserDetail {
   conference: string
   team_name: string
   created_at: string
+  activity: UserActivity
+  scenarios: UserScenario[]
 }
 
 interface AccountBudget {
   user_id: string
+  name: string
+  email: string
   school: string
+  team_name: string
   scenario_name: string
   budget: number
   committed: number
@@ -34,13 +61,18 @@ interface NilEntry {
   status: string
 }
 
+interface NilPlayerData {
+  player_name: string
+  entries: NilEntry[]
+}
+
 interface AnalyticsData {
   user_count: number
   roster_count: number
   users_by_school: Record<string, number>
   users_by_conference: Record<string, number>
   user_details: UserDetail[]
-  nil_by_player: Record<string, NilEntry[]>
+  nil_by_player: Record<string, NilPlayerData>
   account_budgets: AccountBudget[]
 }
 
@@ -127,6 +159,89 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
   )
 }
 
+// ── User detail modal ─────────────────────────────────────────────────────────
+
+function UserModal({ user, onClose }: { user: UserDetail; onClose: () => void }) {
+  const a = user.activity
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="bg-[#14171c] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between p-5 border-b border-white/10">
+          <div>
+            <p className="text-base font-semibold text-white">{user.name || '—'}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{user.email}</p>
+            <p className="text-xs text-gray-600 mt-0.5">{user.team_name || '—'} · {user.conference} · Joined {formatDate(user.created_at)}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-600 hover:text-gray-300 transition-colors p-1">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Activity summary */}
+        <div className="p-5 border-b border-white/10">
+          <p className="text-xs text-gray-500 uppercase tracking-widest mb-3">Activity</p>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Rosters', value: a.scenario_count || 1 },
+              { label: 'NIL Deals', value: a.nil_deal_count },
+              { label: 'Roster Predictions', value: a.prediction_count },
+              { label: 'Player Projections', value: a.projection_count },
+              { label: 'Player Notes', value: a.note_count },
+              { label: 'Total Budget', value: fmt(a.total_budget || 5_000_000) },
+              { label: 'Committed NIL', value: fmt(a.total_committed) },
+            ].map(item => (
+              <div key={item.label} className="bg-white/5 rounded-xl p-3">
+                <p className="text-xs text-gray-500 mb-1">{item.label}</p>
+                <p className="text-lg font-bold text-white font-mono">{item.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Scenarios */}
+        <div className="p-5">
+          <p className="text-xs text-gray-500 uppercase tracking-widest mb-3">Saved Rosters</p>
+          {user.scenarios.length === 0 ? (
+            <p className="text-xs text-gray-600">Using default roster only (not yet saved to cloud)</p>
+          ) : (
+            <div className="space-y-2">
+              {user.scenarios.map(s => {
+                const used = s.committed + s.targeted
+                const pct = s.budget > 0 ? Math.min(100, (used / s.budget) * 100) : 0
+                return (
+                  <div key={s.id} className="bg-white/5 rounded-xl px-4 py-3 flex items-center gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white font-medium truncate">{s.name}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{s.nil_deal_count} active NIL deals · Created {formatDate(s.created_at)}</p>
+                    </div>
+                    <div className="text-right shrink-0 space-y-1">
+                      <p className="text-xs font-mono text-gray-400">{fmt(s.budget)} budget</p>
+                      <p className="text-xs font-mono text-green-400">{fmt(s.committed)} signed</p>
+                    </div>
+                    <div className="w-16">
+                      <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${pct > 90 ? 'bg-red-500' : pct > 70 ? 'bg-amber-500' : 'bg-green-500'}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-gray-600 mt-0.5 text-right">{Math.round(pct)}% used</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 function Dashboard() {
@@ -134,6 +249,7 @@ function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'users' | 'nil' | 'budgets'>('users')
+  const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -174,19 +290,19 @@ function Dashboard() {
     )
   }
 
-  // Total NIL committed and targeted across all accounts
   const totalCommitted = data.account_budgets.reduce((s, b) => s + b.committed, 0)
   const totalTargeted  = data.account_budgets.reduce((s, b) => s + b.targeted, 0)
   const totalBudget    = data.account_budgets.reduce((s, b) => s + b.budget, 0)
 
   // Top players by total offer amount
   const playerTotals = Object.entries(data.nil_by_player)
-    .map(([id, entries]) => ({
+    .map(([id, playerData]) => ({
       id,
-      total: entries.reduce((s, e) => s + e.amount, 0),
-      entries,
-      topSchool: entries.sort((a, b) => b.amount - a.amount)[0]?.school ?? '—',
-      offerCount: entries.filter(e => e.status !== 'not_targeted').length,
+      name: playerData.player_name,
+      entries: playerData.entries,
+      total: playerData.entries.reduce((s, e) => s + e.amount, 0),
+      topSchool: [...playerData.entries].sort((a, b) => b.amount - a.amount)[0]?.school ?? '—',
+      offerCount: playerData.entries.filter(e => e.status !== 'not_targeted').length,
     }))
     .filter(p => p.total > 0)
     .sort((a, b) => b.total - a.total)
@@ -200,6 +316,10 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen bg-[#0f1114] text-white">
+      {selectedUser && (
+        <UserModal user={selectedUser} onClose={() => setSelectedUser(null)} />
+      )}
+
       {/* Header */}
       <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between">
         <div>
@@ -217,8 +337,8 @@ function Dashboard() {
       <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
         {/* Stat cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard label="Total Users" value={data.user_count} sub={`${Object.keys(data.users_by_school).length} schools`} />
-          <StatCard label="Total Rosters" value={data.roster_count} sub="across all accounts" />
+          <StatCard label="Total Users" value={data.user_count} sub={`${Object.keys(data.users_by_school).filter(s => s !== 'Unknown').length} schools`} />
+          <StatCard label="Total Rosters" value={data.roster_count} sub="incl. default rosters" />
           <StatCard label="Total Committed NIL" value={fmt(totalCommitted)} sub="signed deals" />
           <StatCard label="Total Budget Allocated" value={fmt(totalBudget)} sub={`${fmt(totalTargeted)} targeted`} />
         </div>
@@ -288,6 +408,9 @@ function Dashboard() {
           {/* Users tab */}
           {activeTab === 'users' && (
             <div className="bg-[#14171c] border border-white/10 rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-white/10">
+                <p className="text-xs text-gray-500">Click a row to see full account detail</p>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
@@ -296,24 +419,36 @@ function Dashboard() {
                       <th className="text-left px-4 py-3 font-medium">Email</th>
                       <th className="text-left px-4 py-3 font-medium">School</th>
                       <th className="text-left px-4 py-3 font-medium">Conference</th>
-                      <th className="text-left px-4 py-3 font-medium">Team</th>
+                      <th className="text-right px-4 py-3 font-medium">Rosters</th>
+                      <th className="text-right px-4 py-3 font-medium">NIL Deals</th>
+                      <th className="text-right px-4 py-3 font-medium">Predictions</th>
+                      <th className="text-right px-4 py-3 font-medium">Projections</th>
+                      <th className="text-right px-4 py-3 font-medium">Notes</th>
                       <th className="text-left px-4 py-3 font-medium">Joined</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.user_details.map(u => (
-                      <tr key={u.id} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
+                      <tr
+                        key={u.id}
+                        onClick={() => setSelectedUser(u)}
+                        className="border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors cursor-pointer"
+                      >
                         <td className="px-4 py-3 text-white font-medium">{u.name || '—'}</td>
                         <td className="px-4 py-3 text-gray-400">{u.email}</td>
                         <td className="px-4 py-3 text-gray-300">{u.school}</td>
                         <td className="px-4 py-3 text-gray-500">{u.conference}</td>
-                        <td className="px-4 py-3 text-gray-500">{u.team_name || '—'}</td>
+                        <td className="px-4 py-3 text-right font-mono text-gray-300">{u.activity.scenario_count || 1}</td>
+                        <td className="px-4 py-3 text-right font-mono text-gray-300">{u.activity.nil_deal_count}</td>
+                        <td className="px-4 py-3 text-right font-mono text-gray-300">{u.activity.prediction_count}</td>
+                        <td className="px-4 py-3 text-right font-mono text-gray-300">{u.activity.projection_count}</td>
+                        <td className="px-4 py-3 text-right font-mono text-gray-300">{u.activity.note_count}</td>
                         <td className="px-4 py-3 text-gray-600">{formatDate(u.created_at)}</td>
                       </tr>
                     ))}
                     {data.user_details.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-gray-600">No users yet</td>
+                        <td colSpan={10} className="px-4 py-8 text-center text-gray-600">No users yet</td>
                       </tr>
                     )}
                   </tbody>
@@ -336,7 +471,7 @@ function Dashboard() {
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="border-b border-white/10 text-gray-500">
-                          <th className="text-left px-4 py-3 font-medium">Player ID</th>
+                          <th className="text-left px-4 py-3 font-medium">Player</th>
                           <th className="text-left px-4 py-3 font-medium">Offers</th>
                           <th className="text-left px-4 py-3 font-medium">Top School</th>
                           <th className="text-right px-4 py-3 font-medium">Total Value</th>
@@ -346,7 +481,10 @@ function Dashboard() {
                       <tbody>
                         {playerTotals.map(p => (
                           <tr key={p.id} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
-                            <td className="px-4 py-3 text-gray-400 font-mono">{p.id.slice(0, 16)}…</td>
+                            <td className="px-4 py-3">
+                              <p className="text-white font-medium">{p.name || '—'}</p>
+                              <p className="text-gray-600 font-mono text-[10px]">{p.id}</p>
+                            </td>
                             <td className="px-4 py-3 text-gray-300">{p.offerCount}</td>
                             <td className="px-4 py-3 text-white">{p.topSchool}</td>
                             <td className="px-4 py-3 text-right font-mono font-semibold text-green-400">{fmt(p.total)}</td>
@@ -379,6 +517,8 @@ function Dashboard() {
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-white/10 text-gray-500">
+                      <th className="text-left px-4 py-3 font-medium">Name</th>
+                      <th className="text-left px-4 py-3 font-medium">Email</th>
                       <th className="text-left px-4 py-3 font-medium">School</th>
                       <th className="text-left px-4 py-3 font-medium">Scenario</th>
                       <th className="text-right px-4 py-3 font-medium">Budget</th>
@@ -397,14 +537,16 @@ function Dashboard() {
                         const pct = b.budget > 0 ? Math.min(100, (used / b.budget) * 100) : 0
                         return (
                           <tr key={i} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
-                            <td className="px-4 py-3 text-white font-medium">{b.school}</td>
+                            <td className="px-4 py-3 text-white font-medium">{b.name || '—'}</td>
+                            <td className="px-4 py-3 text-gray-500">{b.email}</td>
+                            <td className="px-4 py-3 text-gray-300">{b.school}</td>
                             <td className="px-4 py-3 text-gray-400">{b.scenario_name}</td>
                             <td className="px-4 py-3 text-right font-mono text-gray-300">{fmt(b.budget)}</td>
                             <td className="px-4 py-3 text-right font-mono text-green-400">{fmt(b.committed)}</td>
                             <td className="px-4 py-3 text-right font-mono text-amber-400">{fmt(b.targeted)}</td>
                             <td className="px-4 py-3 text-right font-mono text-gray-400">{fmt(b.remaining)}</td>
                             <td className="px-4 py-3">
-                              <div className="w-24 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                              <div className="w-20 h-1.5 bg-white/10 rounded-full overflow-hidden">
                                 <div
                                   className={`h-full rounded-full ${pct > 90 ? 'bg-red-500' : pct > 70 ? 'bg-amber-500' : 'bg-green-500'}`}
                                   style={{ width: `${pct}%` }}
@@ -416,7 +558,7 @@ function Dashboard() {
                       })}
                     {data.account_budgets.filter(b => b.budget > 0).length === 0 && (
                       <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center text-gray-600">No budget data yet</td>
+                        <td colSpan={9} className="px-4 py-8 text-center text-gray-600">No budget data yet</td>
                       </tr>
                     )}
                   </tbody>

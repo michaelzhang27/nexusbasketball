@@ -21,6 +21,8 @@ import { getAccessToken } from '@/lib/auth'
 import { savePlayerNotes } from '@/lib/api'
 import type { SidePanelTab, Player } from '@/types'
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8005'
+
 // ── Main SidePanel ────────────────────────────────────────────────────────────
 export function SidePanel() {
   const sidePanel = useNexusStore(s => s.sidePanel)
@@ -222,6 +224,17 @@ function StatsTab({ playerId }: { playerId: string }) {
 
   function handleProject() {
     setLocalCommittedMpg(expectedMpg)
+    // Fire-and-forget: log this projection event for analytics
+    if (player) {
+      getAccessToken().then(token => {
+        if (!token) return
+        fetch(`${API_BASE}/api/analytics/log-event`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ event_type: 'player_projection', metadata: { player_id: player.id } }),
+        }).catch(() => {})
+      })
+    }
   }
 
   function handleReset() {

@@ -81,10 +81,15 @@ export function MinutesManager() {
     })
 
     // ── ML player stat predictions ─────────────────────────────────────────
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
     try {
       const res = await fetch(`${API_BASE}/api/players/predictions/batch`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({ players: payload }),
       })
       if (res.ok) {
@@ -99,10 +104,7 @@ export function MinutesManager() {
 
     // ── Conference record prediction ────────────────────────────────────────
     try {
-      // Get the coach's team name from Supabase auth metadata
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      const teamName: string | undefined = user?.user_metadata?.team_name
+      const teamName: string | undefined = session?.user?.user_metadata?.team_name
 
       if (teamName) {
         // Collect BPM and minutes for all roster players

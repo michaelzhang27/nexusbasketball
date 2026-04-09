@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import * as RadixTabs from '@radix-ui/react-tabs'
 import { useNexusStore } from '@/store'
@@ -108,14 +108,55 @@ function BigStatCard({
 
 export function TeamStats() {
   const [activeTab, setActiveTab] = useState<StatTab>('overview')
-  const teamStats  = useProjectedTeamStats()
+  const teamStats   = useProjectedTeamStats()
   const teamContext = useNexusStore(s => s.teamContext)
+  const isPredicted = useNexusStore(s => s.isPredicted)
 
   if (!teamStats) {
     return <div className="text-gray-600 text-sm text-center py-4">Add players to the roster to see team analytics.</div>
   }
 
   const confAvg = teamContext?.conference_avg ?? null
+  // Use projected efficiency metrics when predictions have been run,
+  // falling back to last year's actual stats otherwise.
+  const showProjected = isPredicted
+
+  // When predictions exist, overlay projected values onto the historical team stats.
+  // Fields we can project: adj_oe, adj_de, net_rating, efg_o, three_p_o, adj_t.
+  // All other KenPom fields (four factors, shooting splits, barthag) stay historical.
+  const effectiveTeam = useMemo(() => {
+    if (!teamContext || !teamStats || !showProjected) return teamContext?.team ?? null
+    return {
+      ...teamContext.team,
+      adj_oe:     teamStats.ortg,
+      adj_de:     teamStats.drtg,
+      net_rating: teamStats.netRating,
+      efg_o:      teamStats.efgPct,
+      three_p_o:  teamStats.fg3Pct,
+      adj_t:      teamStats.pace,
+    }
+  }, [teamContext, teamStats, showProjected])
+
+  // Re-sort conference standings with our projected net rating inserted.
+  const effectiveStandings = useMemo(() => {
+    if (!teamContext || !teamStats || !showProjected) return teamContext?.conference_standings ?? []
+    return [...teamContext.conference_standings]
+      .map(e =>
+        e.team.toLowerCase() === teamContext.team.team.toLowerCase()
+          ? { ...e, net_rating: teamStats.netRating }
+          : e
+      )
+      .sort((a, b) => b.net_rating - a.net_rating)
+  }, [teamContext, teamStats, showProjected])
+
+  const effectiveRank = useMemo(() => {
+    if (!teamContext) return null
+    if (!showProjected || !teamStats) return teamContext.team.conference_rank
+    const idx = effectiveStandings.findIndex(
+      e => e.team.toLowerCase() === teamContext.team.team.toLowerCase()
+    )
+    return idx >= 0 ? idx + 1 : teamContext.team.conference_rank
+  }, [teamContext, teamStats, showProjected, effectiveStandings])
 
   return (
     <div>
@@ -123,12 +164,9 @@ export function TeamStats() {
       <div className="flex items-center justify-between mb-4">
         <p className="text-xs text-gray-500">
           {teamContext
-            ? `${teamContext.team.team} · ${teamContext.team.conference} · Comparing vs conference average`
+            ? `${teamContext.team.team} · ${teamContext.team.conference} · ${showProjected ? 'Projected roster vs conference average' : 'Last year vs conference average'}`
             : 'Set your team in account settings to see conference comparisons.'}
         </p>
-        <span className="text-[10px] text-gray-600 bg-white/5 border border-white/10 rounded px-2 py-1">
-          Last year comparison — coming soon
-        </span>
       </div>
 
       <RadixTabs.Root value={activeTab} onValueChange={v => setActiveTab(v as StatTab)}>
@@ -181,61 +219,94 @@ export function TeamStats() {
               </div>
             </div>
 
-            {/* Right: KenPom metrics vs conference avg */}
+            {/* Right: projected efficiency vs conf avg (or last year's actual if not predicted) */}
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <h3 className="text-xs text-gray-500 uppercase tracking-wide">
-                  {confAvg ? 'Team vs Conf Avg' : 'KenPom Metrics'}
+                  {confAvg ? 'Team vs Conf Avg' : 'Efficiency'}
                 </h3>
+                {showProjected && (
+                  <span className="text-[10px] text-blue-400 bg-blue-900/15 rounded px-1.5 py-0.5 border border-blue-700/20">Projected</span>
+                )}
               </div>
-              {confAvg && teamContext ? (
-                <div className="bg-[#1a1e24] rounded-lg px-3 py-1">
-                  <div className="flex items-center justify-between py-1 text-[10px] text-gray-600 border-b border-white/5">
-                    <span>Metric</span>
-                    <div className="flex gap-3">
-                      <span className="w-12 text-right text-white">Team</span>
-                      <span className="w-14 text-right">Conf</span>
-                      <span className="w-10 text-right">Δ</span>
+              <div className="bg-[#1a1e24] rounded-lg px-3 py-1">
+                {confAvg ? (
+                  <>
+                    <div className="flex items-center justify-between py-1 text-[10px] text-gray-600 border-b border-white/5">
+                      <span>Metric</span>
+                      <div className="flex gap-3">
+                        <span className="w-12 text-right text-white">Team</span>
+                        <span className="w-14 text-right">Conf</span>
+                        <span className="w-10 text-right">Δ</span>
+                      </div>
                     </div>
-                  </div>
-                  <StatCompareRow label="Adj OE"  team={teamContext.team.adj_oe}     compare={confAvg.adj_oe}     />
-                  <StatCompareRow label="Adj DE"  team={teamContext.team.adj_de}     compare={confAvg.adj_de}     better="lower" />
-                  <StatCompareRow label="Net Rtg" team={teamContext.team.net_rating} compare={confAvg.net_rating} />
-                  <StatCompareRow label="eFG% O"  team={teamContext.team.efg_o}      compare={confAvg.efg_o}      format="pct" />
-                  <StatCompareRow label="Tempo"   team={teamContext.team.adj_t}      compare={confAvg.adj_t}      />
-                  <StatCompareRow label="WAB"     team={teamContext.team.wab}        compare={confAvg.wab}        />
-                </div>
-              ) : (
-                <div className="bg-[#1a1e24] rounded-lg px-3 py-1">
-                  {[
-                    { label: 'ORTG', value: teamStats.ortg.toFixed(0) },
-                    { label: 'DRTG', value: teamStats.drtg.toFixed(0) },
-                    { label: 'Net',  value: `${teamStats.netRating > 0 ? '+' : ''}${teamStats.netRating.toFixed(0)}` },
-                    { label: 'Pace', value: teamStats.pace.toFixed(0) },
-                    { label: 'RPG',  value: teamStats.rpg.toFixed(1) },
-                    { label: 'APG',  value: teamStats.apg.toFixed(1) },
+                    <StatCompareRow
+                      label="Adj OE"
+                      team={showProjected ? teamStats.ortg : teamContext!.team.adj_oe}
+                      compare={confAvg.adj_oe}
+                    />
+                    <StatCompareRow
+                      label="Adj DE"
+                      team={showProjected ? teamStats.drtg : teamContext!.team.adj_de}
+                      compare={confAvg.adj_de}
+                      better="lower"
+                    />
+                    <StatCompareRow
+                      label="Net Rtg"
+                      team={showProjected ? teamStats.netRating : teamContext!.team.net_rating}
+                      compare={confAvg.net_rating}
+                    />
+                    <StatCompareRow
+                      label="eFG% O"
+                      team={showProjected ? teamStats.efgPct : teamContext!.team.efg_o}
+                      compare={confAvg.efg_o}
+                      format="pct"
+                    />
+                    <StatCompareRow
+                      label="Tempo"
+                      team={showProjected ? teamStats.pace : teamContext!.team.adj_t}
+                      compare={confAvg.adj_t}
+                    />
+                    {/* WAB requires full schedule simulation — show actual only */}
+                    <StatCompareRow
+                      label={showProjected ? 'WAB (last yr)' : 'WAB'}
+                      team={teamContext!.team.wab}
+                      compare={confAvg.wab}
+                    />
+                  </>
+                ) : (
+                  [
+                    { label: 'Proj ORTG', value: teamStats.ortg.toFixed(0) },
+                    { label: 'Proj DRTG', value: teamStats.drtg.toFixed(0) },
+                    { label: 'Net Rtg',   value: `${teamStats.netRating > 0 ? '+' : ''}${teamStats.netRating.toFixed(0)}` },
+                    { label: 'Pace',      value: teamStats.pace.toFixed(0) },
+                    { label: 'RPG',       value: teamStats.rpg.toFixed(1) },
+                    { label: 'APG',       value: teamStats.apg.toFixed(1) },
                   ].map(({ label, value }, i, arr) => (
                     <div key={label} className={cn('flex justify-between py-2', i < arr.length - 1 && 'border-b border-white/5')}>
                       <span className="text-xs text-gray-400">{label}</span>
                       <span className="text-xs font-mono text-white">{value}</span>
                     </div>
-                  ))}
-                </div>
-              )}
+                  ))
+                )}
+              </div>
             </div>
           </div>
 
           {/* Conference standings strip */}
           {teamContext && (
             <div className="mt-4 bg-[#1a1e24] rounded-lg p-3">
-              <p className="text-[10px] text-gray-600 mb-2 uppercase tracking-wide">Conference Standings by Net Rating</p>
+              <div className="flex items-center gap-2 mb-2">
+                <p className="text-[10px] text-gray-600 uppercase tracking-wide">Conference Standings by Net Rating</p>
+                {showProjected && <span className="text-[10px] text-blue-400 bg-blue-900/15 rounded px-1.5 py-0.5 border border-blue-700/20">Projected</span>}
+              </div>
               <div className="flex items-center gap-1 flex-wrap">
-                {teamContext.conference_standings.slice(0, 16).map((entry, i) => {
+                {effectiveStandings.slice(0, 16).map((entry, i) => {
                   const isOurs = entry.team.toLowerCase() === teamContext.team.team.toLowerCase()
                   return (
                     <div
                       key={entry.team}
-                      title={`${entry.team}: ${entry.net_rating > 0 ? '+' : ''}${entry.net_rating}`}
+                      title={`${entry.team}: ${entry.net_rating > 0 ? '+' : ''}${entry.net_rating.toFixed(1)}`}
                       className={cn(
                         'flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono',
                         isOurs ? 'bg-blue-600 text-white font-bold' : 'bg-white/5 text-gray-500'
@@ -248,7 +319,7 @@ export function TeamStats() {
                 })}
               </div>
               <p className="text-[10px] text-gray-700 mt-1.5">
-                {teamContext.team.team} ranked #{teamContext.team.conference_rank} of {teamContext.team.conference_size} in {teamContext.team.conference} by net rating
+                {teamContext.team.team} ranked #{effectiveRank} of {teamContext.team.conference_size} in {teamContext.team.conference} by net rating
               </p>
             </div>
           )}
@@ -256,7 +327,7 @@ export function TeamStats() {
 
         {/* ── Four Factors ──────────────────────────────────────────────────── */}
         <RadixTabs.Content value="fourfactors">
-          {!confAvg || !teamContext ? (
+          {!confAvg || !teamContext || !effectiveTeam ? (
             <div className="text-center py-8 text-gray-600 text-xs">
               Set your team in account settings and run predictions to see Four Factors analysis.
             </div>
@@ -264,22 +335,26 @@ export function TeamStats() {
             <>
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Offense</h3>
-                  <FactorBar label="eFG%"    description="Effective field goal %"              teamValue={teamContext.team.efg_o} compareValue={confAvg.efg_o} min={44} max={62} />
-                  <FactorBar label="TOV%"    description="Turnover rate (lower = better)"      teamValue={teamContext.team.tor}   compareValue={confAvg.tor}   min={12} max={24} better="lower" />
-                  <FactorBar label="ORB%"    description="Offensive rebound rate"              teamValue={teamContext.team.orb}   compareValue={confAvg.orb}   min={20} max={45} />
-                  <FactorBar label="FTR"     description="Free throw rate (FTA/FGA × 100)"     teamValue={teamContext.team.ftr}   compareValue={confAvg.ftr}   min={20} max={50} />
+                  <div className="flex items-center gap-2 mb-3">
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Offense</h3>
+                    {showProjected && <span className="text-[10px] text-blue-400 bg-blue-900/15 rounded px-1.5 py-0.5 border border-blue-700/20">Projected</span>}
+                  </div>
+                  <FactorBar label="eFG%"    description="Effective field goal %"              teamValue={effectiveTeam.efg_o} compareValue={confAvg.efg_o} min={44} max={62} />
+                  <FactorBar label="TOV%"    description="Turnover rate (lower = better)"      teamValue={effectiveTeam.tor}   compareValue={confAvg.tor}   min={12} max={24} better="lower" />
+                  <FactorBar label="ORB%"    description="Offensive rebound rate"              teamValue={effectiveTeam.orb}   compareValue={confAvg.orb}   min={20} max={45} />
+                  <FactorBar label="FTR"     description="Free throw rate (FTA/FGA × 100)"     teamValue={effectiveTeam.ftr}   compareValue={confAvg.ftr}   min={20} max={50} />
                 </div>
                 <div>
                   <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Defense</h3>
-                  <FactorBar label="eFG% Allowed" description="Opponent eFG% (lower = better)"    teamValue={teamContext.team.efg_d} compareValue={confAvg.efg_d} min={44} max={62} better="lower" />
-                  <FactorBar label="TOV% Forced"  description="Opponent turnover rate"             teamValue={teamContext.team.tord}  compareValue={confAvg.tord}  min={12} max={24} />
-                  <FactorBar label="DRB%"         description="Defensive rebound rate"             teamValue={teamContext.team.drb}   compareValue={confAvg.drb}   min={55} max={80} />
-                  <FactorBar label="FTR Allowed"  description="Opponent FT rate (lower = better)"  teamValue={teamContext.team.ftrd}  compareValue={confAvg.ftrd}  min={20} max={50} better="lower" />
+                  <FactorBar label="eFG% Allowed" description="Opponent eFG% (lower = better)"    teamValue={effectiveTeam.efg_d} compareValue={confAvg.efg_d} min={44} max={62} better="lower" />
+                  <FactorBar label="TOV% Forced"  description="Opponent turnover rate"             teamValue={effectiveTeam.tord}  compareValue={confAvg.tord}  min={12} max={24} />
+                  <FactorBar label="DRB%"         description="Defensive rebound rate"             teamValue={effectiveTeam.drb}   compareValue={confAvg.drb}   min={55} max={80} />
+                  <FactorBar label="FTR Allowed"  description="Opponent FT rate (lower = better)"  teamValue={effectiveTeam.ftrd}  compareValue={confAvg.ftrd}  min={20} max={50} better="lower" />
                 </div>
               </div>
               <div className="mt-4 p-3 bg-[#1a1e24] rounded-lg text-xs text-gray-500">
                 The Four Factors (Dean Oliver) predict wins better than any single stat. eFG% (40%), TOV% (25%), ORB% (20%), FTR (15%). Blue = team, gray line = conf avg.
+                {showProjected && ' eFG% uses projected roster data; TOV%, ORB%, FTR reflect last season\'s team system.'}
               </div>
             </>
           )}
@@ -287,26 +362,29 @@ export function TeamStats() {
 
         {/* ── Efficiency ────────────────────────────────────────────────────── */}
         <RadixTabs.Content value="efficiency">
-          {!confAvg || !teamContext ? (
+          {!confAvg || !teamContext || !effectiveTeam ? (
             <div className="text-center py-8 text-gray-600 text-xs">
               Set your team in account settings and run predictions to see efficiency metrics.
             </div>
           ) : (
             <>
+              <div className="flex items-center gap-2 mb-3">
+                {showProjected && <span className="text-[10px] text-blue-400 bg-blue-900/15 rounded px-1.5 py-0.5 border border-blue-700/20">Projected</span>}
+              </div>
               <div className="grid grid-cols-3 gap-3 mb-3">
-                <BigStatCard label="Adj Offensive Eff" value={teamContext.team.adj_oe}     compare={confAvg.adj_oe}     unit=" pts/100" subtitle="Points per 100 possessions" />
-                <BigStatCard label="Adj Defensive Eff" value={teamContext.team.adj_de}     compare={confAvg.adj_de}     better="lower" unit=" pts/100" subtitle="Points allowed per 100 poss" />
-                <BigStatCard label="Net Rating"        value={teamContext.team.net_rating} compare={confAvg.net_rating} subtitle="ADJOE − ADJDE" />
+                <BigStatCard label="Adj Offensive Eff" value={effectiveTeam.adj_oe}     compare={confAvg.adj_oe}     unit=" pts/100" subtitle="Points per 100 possessions" />
+                <BigStatCard label="Adj Defensive Eff" value={effectiveTeam.adj_de}     compare={confAvg.adj_de}     better="lower" unit=" pts/100" subtitle="Points allowed per 100 poss" />
+                <BigStatCard label="Net Rating"        value={effectiveTeam.net_rating} compare={confAvg.net_rating} subtitle="ADJOE − ADJDE" />
               </div>
               <div className="grid grid-cols-3 gap-3">
-                <BigStatCard label="Power Rating"   value={Math.round(teamContext.team.barthag * 1000) / 10} compare={Math.round(confAvg.barthag * 1000) / 10} unit="%" subtitle="Prob of beating avg D1 team" />
-                <BigStatCard label="Adj Tempo"      value={teamContext.team.adj_t} compare={confAvg.adj_t} unit=" poss" subtitle="Possessions per 40 min" />
-                <BigStatCard label="Wins Above Bubble" value={teamContext.team.wab} compare={confAvg.wab} subtitle="Wins vs bubble schedule" />
+                <BigStatCard label="Power Rating"      value={Math.round(teamContext.team.barthag * 1000) / 10} compare={Math.round(confAvg.barthag * 1000) / 10} unit="%" subtitle="Prob of beating avg D1 team" />
+                <BigStatCard label="Adj Tempo"         value={effectiveTeam.adj_t} compare={confAvg.adj_t} unit=" poss" subtitle="Possessions per 40 min" />
+                <BigStatCard label="Wins Above Bubble" value={teamContext.team.wab} compare={confAvg.wab} subtitle={showProjected ? 'Last season (not projected)' : 'Wins vs bubble schedule'} />
               </div>
               <div className="mt-3 bg-[#1a1e24] rounded-lg p-3 text-xs">
-                <p className="text-gray-500 mb-0.5">Conference ranking</p>
+                <p className="text-gray-500 mb-0.5">Conference ranking{showProjected ? ' (projected)' : ''}</p>
                 <p className="text-2xl font-mono font-bold text-white">
-                  #{teamContext.team.conference_rank}
+                  #{effectiveRank}
                   <span className="text-sm text-gray-500 ml-1">/ {teamContext.team.conference_size}</span>
                 </p>
                 <p className="text-gray-600 mt-0.5">{teamContext.team.team} in {teamContext.team.conference} by net rating</p>
@@ -317,20 +395,23 @@ export function TeamStats() {
 
         {/* ── Shooting ──────────────────────────────────────────────────────── */}
         <RadixTabs.Content value="shooting">
-          {!confAvg || !teamContext ? (
+          {!confAvg || !teamContext || !effectiveTeam ? (
             <div className="text-center py-8 text-gray-600 text-xs">
               Set your team in account settings and run predictions to see shooting splits.
             </div>
           ) : (
             <>
+              <div className="flex items-center gap-2 mb-3">
+                {showProjected && <span className="text-[10px] text-blue-400 bg-blue-900/15 rounded px-1.5 py-0.5 border border-blue-700/20">Projected</span>}
+              </div>
               <div className="h-52 mb-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={[
-                      { zone: '2P% Off', team: teamContext.team.two_p_o,   compare: confAvg.two_p_o },
-                      { zone: '3P% Off', team: teamContext.team.three_p_o, compare: confAvg.three_p_o },
-                      { zone: '2P% Def', team: teamContext.team.two_p_d,   compare: confAvg.two_p_d },
-                      { zone: '3P% Def', team: teamContext.team.three_p_d, compare: confAvg.three_p_d },
+                      { zone: '2P% Off', team: effectiveTeam.two_p_o,   compare: confAvg.two_p_o },
+                      { zone: '3P% Off', team: effectiveTeam.three_p_o, compare: confAvg.three_p_o },
+                      { zone: '2P% Def', team: effectiveTeam.two_p_d,   compare: confAvg.two_p_d },
+                      { zone: '3P% Def', team: effectiveTeam.three_p_d, compare: confAvg.three_p_d },
                     ]}
                     margin={{ top: 4, right: 8, left: -10, bottom: 0 }}
                   >
@@ -346,10 +427,10 @@ export function TeamStats() {
               </div>
               <div className="grid grid-cols-4 gap-3">
                 {[
-                  { label: '2P% Off', val: teamContext.team.two_p_o,   cmp: confAvg.two_p_o,   better: 'higher' as const },
-                  { label: '3P% Off', val: teamContext.team.three_p_o, cmp: confAvg.three_p_o, better: 'higher' as const },
-                  { label: '2P% Def', val: teamContext.team.two_p_d,   cmp: confAvg.two_p_d,   better: 'lower'  as const },
-                  { label: '3P% Def', val: teamContext.team.three_p_d, cmp: confAvg.three_p_d, better: 'lower'  as const },
+                  { label: '2P% Off', val: effectiveTeam.two_p_o,   cmp: confAvg.two_p_o,   better: 'higher' as const },
+                  { label: '3P% Off', val: effectiveTeam.three_p_o, cmp: confAvg.three_p_o, better: 'higher' as const },
+                  { label: '2P% Def', val: effectiveTeam.two_p_d,   cmp: confAvg.two_p_d,   better: 'lower'  as const },
+                  { label: '3P% Def', val: effectiveTeam.three_p_d, cmp: confAvg.three_p_d, better: 'lower'  as const },
                 ].map(({ label, val, cmp, better }) => {
                   const delta = val - cmp
                   const isGood = better === 'higher' ? delta > 0 : delta < 0
@@ -364,15 +445,18 @@ export function TeamStats() {
                   )
                 })}
               </div>
-              <p className="mt-3 text-[10px] text-gray-600">Defensive %: lower is better. 2P% Def = interior contest quality; 3P% Def = perimeter contest quality.</p>
+              <p className="mt-3 text-[10px] text-gray-600">
+                Defensive %: lower is better. 2P% Def = interior contest quality; 3P% Def = perimeter contest quality.
+                {showProjected && ' 3P% Off uses projected roster data; other splits reflect last season.'}
+              </p>
             </>
           )}
         </RadixTabs.Content>
 
         {/* ── Radar ─────────────────────────────────────────────────────────── */}
         <RadixTabs.Content value="radar">
-          {confAvg && teamContext
-            ? <RadarFromContext team={teamContext.team} confAvg={confAvg} />
+          {confAvg && effectiveTeam
+            ? <RadarFromContext team={effectiveTeam} confAvg={confAvg} showProjected={showProjected} />
             : <RadarFromProjected teamStats={teamStats} />
           }
         </RadixTabs.Content>
@@ -387,7 +471,7 @@ function norm(value: number, min: number, max: number) {
   return Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100))
 }
 
-function RadarFromContext({ team, confAvg }: { team: TeamSeasonStats; confAvg: TeamSeasonStats }) {
+function RadarFromContext({ team, confAvg, showProjected }: { team: TeamSeasonStats; confAvg: TeamSeasonStats; showProjected?: boolean }) {
   const data = [
     { axis: 'Offense',      team: norm(team.adj_oe,          85, 130), compare: norm(confAvg.adj_oe,          85, 130) },
     { axis: 'Defense',      team: norm(130 - team.adj_de,    15,  45), compare: norm(130 - confAvg.adj_de,    15,  45) },
@@ -398,6 +482,9 @@ function RadarFromContext({ team, confAvg }: { team: TeamSeasonStats; confAvg: T
   ]
   return (
     <div className="h-72">
+      <div className="flex items-center gap-2 mb-2">
+        {showProjected && <span className="text-[10px] text-blue-400 bg-blue-900/15 rounded px-1.5 py-0.5 border border-blue-700/20">Projected</span>}
+      </div>
       <ResponsiveContainer width="100%" height="100%">
         <RadarChart data={data}>
           <PolarGrid stroke="#374151" />

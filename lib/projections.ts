@@ -201,10 +201,15 @@ export function projectPlayerStats(
 
 /**
  * Project aggregated team stats for the active scenario.
+ * When mlPredictions are provided (after "Run Predictions"), each player's
+ * counting stats are sourced from the ML output so team totals match the
+ * Projected Box Score. Rate stats (FG%, 3P%, ORTG, DRTG) still come from
+ * the heuristic since the ML model doesn't project efficiency metrics.
  */
 export function projectTeamStats(
   scenario: RosterScenario,
-  allPlayers: Player[]
+  allPlayers: Player[],
+  mlPredictions?: Record<string, import('@/types').MLPrediction>
 ): ProjectedTeamStats {
   const playerMap = new Map(allPlayers.map(p => [p.id, p]))
 
@@ -217,20 +222,64 @@ export function projectTeamStats(
     return getDefaultTeamStats()
   }
 
-  const projections = activePlayers.map(p =>
-    projectPlayerStats(p, scenario, allPlayers)
-  )
+  const projections = activePlayers.map(p => {
+    const heuristic = projectPlayerStats(p, scenario, allPlayers)
+    const ml = mlPredictions?.[p.id]
+    const mlValid = ml && ml.total_rebounds !== undefined && ml.fg_pct !== undefined
+    if (!mlValid) return heuristic
+    // Use ML counting stats so team totals match the Projected Box Score.
+    // Rate stats (FG%, ORTG, DRTG) stay heuristic — ML doesn't project efficiency.
+    return {
+      ...heuristic,
+      ppg:           ml.points,
+      rpg:           ml.total_rebounds,
+      apg:           ml.assists,
+      spg:           ml.steals,
+      bpg:           ml.blocks,
+      topg:          ml.turnovers,
+      minutesPerGame: ml.projected_mpg,
+    }
+  })
 
-  const count = projections.length
+  // Normalize counting stats to 200 total player-minutes (5 players × 40 min).
+  // When coaches haven't set minutes, each player's minutesMultiplier = 1 and their
+  // full per-game stats are summed — a 13-player roster would inflate PPG ~2.6×.
+  // totalMinutes is the sum of each player's projected MPG from projectPlayerStats.
+  const totalMinutes = projections.reduce((s, p) => s + p.minutesPerGame, 0)
+  const countNorm = totalMinutes > 200 ? 200 / totalMinutes : 1
 
-  const ppg = parseFloat((projections.reduce((s, p) => s + p.ppg, 0)).toFixed(1))
-  const rpg = parseFloat((projections.reduce((s, p) => s + p.rpg, 0)).toFixed(1))
-  const apg = parseFloat((projections.reduce((s, p) => s + p.apg, 0)).toFixed(1))
-  const fgPct = parseFloat((projections.reduce((s, p) => s + p.fgPct, 0) / count).toFixed(1))
-  const fg3Pct = parseFloat((projections.reduce((s, p) => s + p.fg3Pct, 0) / count).toFixed(1))
-  const efgPct = parseFloat((projections.reduce((s, p) => s + p.efgPct, 0) / count).toFixed(1))
-  const ortg = parseFloat((projections.reduce((s, p) => s + p.ortg, 0) / count).toFixed(1))
-  const drtg = parseFloat((projections.reduce((s, p) => s + p.drtg, 0) / count).toFixed(1))
+  const ppg = parseFloat((projections.reduce((s, p) => s + p.ppg, 0) * countNorm).toFixed(1))
+  const rpg = parseFloat((projections.reduce((s, p) => s + p.rpg, 0) * countNorm).toFixed(1))
+  const apg = parseFloat((projections.reduce((s, p) => s + p.apg, 0) * countNorm).toFixed(1))
+
+  // FG%, 3P%, eFG% — weighted by projected FGA so high-volume shooters drive the average.
+  // eFG% is recomputed from aggregated makes/attempts rather than averaging individual rates.
+  const totalFGA   = projections.reduce((s, p) => s + (p.fgaPerGame  ?? 0), 0)
+  const total3PA   = projections.reduce((s, p) => s + (p.fg3mPerGame ?? 0) / Math.max(p.fg3Pct / 100, 0.001), 0)
+  const totalFGM   = projections.reduce((s, p) => s + (p.fgaPerGame  ?? 0) * (p.fgPct  / 100), 0)
+  const total3PM   = projections.reduce((s, p) => s + (p.fg3mPerGame ?? 0), 0)
+  const total3PAttempts = projections.reduce((s, p) => {
+    const fga3 = p.fg3Pct > 0 ? (p.fg3mPerGame ?? 0) / (p.fg3Pct / 100) : 0
+    return s + fga3
+  }, 0)
+
+  const fgPct  = totalFGA > 0
+    ? parseFloat((totalFGM / totalFGA * 100).toFixed(1))
+    : parseFloat((projections.reduce((s, p) => s + p.fgPct, 0) / projections.length).toFixed(1))
+  const fg3Pct = total3PAttempts > 0
+    ? parseFloat((total3PM / total3PAttempts * 100).toFixed(1))
+    : parseFloat((projections.reduce((s, p) => s + p.fg3Pct, 0) / projections.length).toFixed(1))
+  const efgPct = totalFGA > 0
+    ? parseFloat(((totalFGM + 0.5 * total3PM) / totalFGA * 100).toFixed(1))
+    : parseFloat((projections.reduce((s, p) => s + p.efgPct, 0) / projections.length).toFixed(1))
+
+  // ORTG and DRTG — weighted by projected minutes so starters drive team efficiency.
+  const ortg = totalMinutes > 0
+    ? parseFloat((projections.reduce((s, p) => s + p.ortg * p.minutesPerGame, 0) / totalMinutes).toFixed(1))
+    : parseFloat((projections.reduce((s, p) => s + p.ortg, 0) / projections.length).toFixed(1))
+  const drtg = totalMinutes > 0
+    ? parseFloat((projections.reduce((s, p) => s + p.drtg * p.minutesPerGame, 0) / totalMinutes).toFixed(1))
+    : parseFloat((projections.reduce((s, p) => s + p.drtg, 0) / projections.length).toFixed(1))
   const netRating = parseFloat((ortg - drtg).toFixed(1))
 
   // Conference averages (hardcoded MCC baseline)

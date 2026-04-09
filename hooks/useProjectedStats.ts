@@ -25,19 +25,23 @@ export function useProjectedStats(player: Player | null): PlayerStats | null {
 
 /**
  * Compute projected team stats for the active scenario.
+ * When ML predictions exist (after "Run Predictions"), individual player
+ * counting stats are sourced from the ML output so that team totals
+ * match the per-player values shown in the Projected Box Score.
  */
 export function useProjectedTeamStats(): ProjectedTeamStats | null {
   const scenarios = useNexusStore(s => s.scenarios)
   const activeScenarioId = useNexusStore(s => s.activeScenarioId)
   const players = useNexusStore(s => s.players)
   const returners = useNexusStore(s => s.returners)
+  const mlPredictions = useNexusStore(s => s.rosterPredictions)
 
   return useMemo(() => {
     const scenario = scenarios.find(s => s.id === activeScenarioId)
     if (!scenario) return null
     const allPlayers = [...players, ...returners]
-    return projectTeamStats(scenario, allPlayers)
-  }, [scenarios, activeScenarioId, players, returners])
+    return projectTeamStats(scenario, allPlayers, mlPredictions)
+  }, [scenarios, activeScenarioId, players, returners, mlPredictions])
 }
 
 /**
